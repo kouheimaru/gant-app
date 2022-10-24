@@ -11,7 +11,16 @@
 <body>
   <div id="app">
     <div id="gantt-header" class="h-12 p-2 flex items-center">
-      <h1 class="text-xl font-bold">ガントチャート</h1>
+      <h1 class="text-sm font-bold">ガントチャート</h1>
+        <button
+          class="bg-indigo-700 hover:bg-indigo-900 text-white py-2 px-4 rounded-lg flex items-center ml-3">
+          <svg class="w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          <span class="font-bold text-xs">
+            タスクを追加する
+          </span>
+        </button>
     </div>
     <div id="gantt-content" class="flex">
       <div id="gantt-task">
@@ -29,7 +38,30 @@
         </div>
         <!-- リストの中身を表示 -->
         <div id="gantt-task-list" class="overflow-y-hidden" :style="`height:${calendarViewHeight}px`">
-          <div v-for="(list,index) in displayTasks" :key="index" class="flex h-10 border-b">
+          <div v-for="(list,index) in displayTasks" :key="index" class="flex h-10 border-b" draggable=true @dragstart="dragTask(list)"
+          @dragover.prevent="dragTaskOver(list)"
+          >
+          <template v-if="list.cat === 'category'">
+            <div
+              class="flex items-center font-bold w-full text-sm pl-2 flex justify-between items-center bg-green-300">
+              <span>{{list.name}}</span>
+              <div class="pr-4" @click="toggleCategory(list.id)">
+                <span v-if="list.collapsed">
+                  <svg class="w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+                <span v-else>
+                  <svg class="w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+          </template>
+          <template v-else>
             <div class="border-r flex items-center font-bold w-48 text-sm pl-4">
               {{list.name}}
             </div>
@@ -45,7 +77,10 @@
             <div class="flex items-center justify-center w-12 text-sm">
               {{list.percentage}}%
             </div>
+          </template>
+            
           </div>
+          
         </div>
       </div>
 
@@ -91,8 +126,24 @@
       <!-- チャートを表示する -->
       <div id="gantt-bar-area" class="relative" :style="`width:${calendarViewWidth}px;height:${calendarViewHeight}px`">
         <div v-for="(bar,index) in taskBars" :key="index">
-          <div :style="bar.style" class="rounded-lg absolute h-5 bg-yellow-100" v-if="bar.list.cat === 'task'">
-            <div class="w-full h-full">
+          <div :style="bar.style" class="rounded-lg absolute h-5 bg-yellow-100" v-if="bar.list.cat === 'task'" @mousedown="mouseDownMove(bar.list)" >
+            <!-- style="pointer-events: none;"で子要素を選択不可にする -->
+            <div class="w-full h-full" style="pointer-events: none;">
+              <div class="h-full bg-yellow-500 rounded-l-lg text-center"
+              style="pointer-events: none;" 
+              :style="`width:${bar.list.percentage}%`"
+              :class="{'rounded-r-lg': bar.list.percentage === 100}"
+              >
+                {{ bar.list.percentage}}
+              </div>
+            </div>
+            <div class="absolute w-2 h-2 bg-gray-300 border border-black" 
+            style="top:6px;left:-6px;cursor:col-resize"
+            @mousedown.stop="mouseDownResize(bar.task,'left')">
+            </div>
+            <div class="absolute w-2 h-2 bg-gray-300 border border-black" 
+            style="top:6px;right:-6px;cursor:col-resize"
+            @mousedown.stop="mouseDownResize(bar.task,'right')">
             </div>
           </div>
         </div>
@@ -106,6 +157,11 @@
   const app = Vue.createApp({
     data(){
       return {
+        task:'',
+        width:'', //追加
+        leftResizing:false,//追加
+        rightResizing:false,//追加
+        dragging:false,
         position_id:0,
         today:moment(),
         inner_width: '', //追加
@@ -142,8 +198,8 @@
         id: 2,
         category_id: 1,
         name: 'テスト2',
-        start_date: '2020-11-19',
-        end_date: '2020-11-23',
+        start_date: '2022-11-19',
+        end_date: '2022-11-23',
         incharge_user: '佐藤',
         percentage: 90,
         },
@@ -151,8 +207,8 @@
         id: 3,
         category_id: 1,
         name: 'テスト3',
-        start_date: '2020-11-19',
-        end_date: '2020-12-04',
+        start_date: '2022-11-19',
+        end_date: '2022-12-04',
         incharge_user: '鈴木',
         percentage: 40,
         },
@@ -160,8 +216,8 @@
         id: 4,
         category_id: 1,
         name: 'テスト4',
-        start_date: '2020-11-21',
-        end_date: '2020-11-30',
+        start_date: '2022-11-21',
+        end_date: '2022-11-30',
         incharge_user: '山下',
         percentage: 60,
         },
@@ -169,8 +225,8 @@
         id: 5,
         category_id: 1,
         name: 'テスト5',
-        start_date: '2020-11-25',
-        end_date: '2020-12-04',
+        start_date: '2022-11-25',
+        end_date: '2022-12-04',
         incharge_user: '佐藤',
         percentage: 5,
         },
@@ -178,8 +234,8 @@
         id: 6,
         category_id: 2,
         name: 'テスト6',
-        start_date: '2020-11-28',
-        end_date: '2020-12-08',
+        start_date: '2022-11-28',
+        end_date: '2022-12-08',
         incharge_user: '佐藤',
         percentage: 0,
         },
@@ -187,6 +243,135 @@
       }
     },
     methods:{
+      toggleCategory(task_id) {
+        let category = this.categories.find(category => category.id === task_id)
+        category.collapsed = !category.collapsed;
+      },
+      dragTaskOver(overTask) {
+        let deleteIndex;
+        let addIndex;
+        if (this.task.cat !== 'category') {
+          if (overTask.cat === 'category') {
+            let updateTask = this.tasks.find(task => task.id === this.task.id)
+            updateTask['category_id'] = overTask['id']
+          } else {
+            if (overTask.id !== this.task.id) {
+              this.tasks.map((task, index) => { if (task.id === this.task.id) deleteIndex = index })
+              this.tasks.map((task, index) => { if (task.id === overTask.id) addIndex = index })
+              this.tasks.splice(deleteIndex, 1)
+              this.task['category_id'] = overTask['category_id']
+              this.tasks.splice(addIndex, 0, this.task)
+            }
+          }
+        }
+      },
+      dragTask(task) {
+        this.task = task
+      },
+      mouseResize() {
+        if (this.leftResizing) {
+          let diff = this.pageX - event.pageX
+          if (parseInt(this.width.replace('px', '')) + diff > this.block_size) {
+            this.element.style.width = `${parseInt(this.width.replace('px', '')) + diff}px`
+            this.element.style.left = `${this.left.replace('px', '') - diff}px`;
+          }
+        }
+        if (this.rightResizing) {
+          let diff = this.pageX - event.pageX;
+          if (parseInt(this.width.replace('px', '')) - diff > this.block_size) {
+            this.element.style.width = `${parseInt(this.width.replace('px', '')) - diff}px`
+          }
+        }
+      },
+      mouseDownResize(task, direction) {
+        direction === 'left' ? this.leftResizing = true : this.rightResizing = true;
+        this.pageX = event.pageX;
+        this.width = event.target.parentElement.style.width;
+        this.left = event.target.parentElement.style.left;
+        this.element = event.target.parentElement;
+        this.task_id = task.id
+      },
+      stopDrag(){
+        if (this.dragging) {
+          // どれほど移動したのかを取得
+          let diff = this.pageX - event.pageX
+          // 日にちに換算する
+          let days = Math.ceil(diff / this.block_size)
+          if (days !== 0) {
+            console.log(days)
+            let task = this.tasks.find(task => task.id === this.task_id);
+            let start_date = moment(task.start_date).add(-days, 'days')
+            let end_date = moment(task.end_date).add(-days, 'days')
+            task['start_date'] = start_date.format('YYYY-MM-DD')
+            task['end_date'] = end_date.format('YYYY-MM-DD')
+          } else {
+            this.element.style.left = `${this.left.replace('px', '')}px`;
+          }
+        }
+
+        if (this.leftResizing) {
+          let diff = this.pageX - event.pageX;
+          let days = Math.ceil(diff / this.block_size)
+          if (days !== 0) {
+            let task = this.tasks.find(task => task.id === this.task_id);
+            let start_date = moment(task.start_date).add(-days, 'days')
+            let end_date = moment(task.end_date)
+            if (end_date.diff(start_date, 'days') <= 0) {
+              task['start_date'] = end_date.format('YYYY-MM-DD')
+            } else {
+              task['start_date'] = start_date.format('YYYY-MM-DD')
+            }
+          } else {
+            this.element.style.width = this.width;
+            this.element.style.left = `${this.left.replace('px', '')}px`;
+          }
+        }
+
+        if (this.rightResizing) {
+          let diff = this.pageX - event.pageX;
+          let days = Math.ceil(diff / this.block_size)
+          if (days === 1) {
+            this.element.style.width = `${parseInt(this.width.replace('px', ''))}px`;
+          } else if (days <= 2) {
+            days--;
+            let task = this.tasks.find(task => task.id === this.task_id);
+            let end_date = moment(task.end_date).add(-days, 'days')
+            task['end_date'] = end_date.format('YYYY-MM-DD')
+          } else {
+            let task = this.tasks.find(task => task.id === this.task_id);
+            let start_date = moment(task.start_date);
+            let end_date = moment(task.end_date).add(-days, 'days')
+            if (end_date.diff(start_date, 'days') < 0) {
+              task['end_date'] = start_date.format('YYYY-MM-DD')
+            } else {
+              task['end_date'] = end_date.format('YYYY-MM-DD')
+            }
+          }
+        }
+        
+        this.dragging = false;
+        this.leftResizing = false;
+        this.rightResizing = false;
+      },
+      mouseMove() {
+        if (this.dragging) {
+          
+          let diff = this.pageX - event.pageX;
+          this.element.style.left = `${parseInt(this.left.replace('px', '')) - diff}px`;
+        }
+      },
+      mouseDownMove(task){
+        // ドラッグ中にする
+        this.dragging = true;
+        // クリックした座標を取得
+        this.pageX = event.pageX;
+        this.element = event.target;
+        // cssの取得
+        this.left = event.target.style.left;
+        // そのタスクか特定するIDを取得
+        this.task_id = task.id
+        console.log('mouseDownMove')
+      },
       windowSizeCheck() {
         let height = this.lists.length - this.position_id
         if (event.deltaY > 0 && height * 40 > this.calendarViewHeight) {
@@ -246,6 +431,7 @@
       },
       },
       computed: {
+        
         displayTasks() {
           let display_task_number = Math.floor(this.calendarViewHeight / 40);
           return this.lists.slice(this.position_id, this.position_id + display_task_number);
@@ -257,7 +443,7 @@
           let between;
           let start;
           let style;
-          return this.displayTasksa.map(list => {
+          return this.displayTasks.map(list => {
             style = {}
             if(list.cat==='task'){
               let date_from = moment(list.start_date);
@@ -284,7 +470,7 @@
           this.categories.map(category => {
             lists.push({ cat: 'category', ...category });
             this.tasks.map(task => {
-              if (task.category_id === category.id) {
+              if (task.category_id === category.id && !category.collapsed) {
                 lists.push({ cat: 'task', ...task })
               }
             })
@@ -313,6 +499,11 @@
         this.$nextTick(() => {
           this.todayPosition();
         })
+        // マウスの操作を検知
+        window.addEventListener('mousemove', this.mouseMove);
+        window.addEventListener('mouseup', this.stopDrag);
+        window.addEventListener('mousemove', this.mouseResize);
+      
       }
   }).mount('#app')
 </script>
